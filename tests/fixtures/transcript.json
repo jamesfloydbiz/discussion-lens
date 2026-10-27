@@ -1,0 +1,519 @@
+{
+ "id": "fixture1",
+ "createdAt": "2026-10-27T15:00:00.000Z",
+ "title": "Fixture: phones and homework",
+ "ageBand": "68",
+ "source": "sample",
+ "durationSec": 197.3,
+ "speakers": [
+  {
+   "id": 0,
+   "name": "Maya",
+   "color": "#4e79a7"
+  },
+  {
+   "id": 1,
+   "name": "Leo",
+   "color": "#f28e2b"
+  },
+  {
+   "id": 2,
+   "name": "Priya",
+   "color": "#59a14f"
+  },
+  {
+   "id": 3,
+   "name": "Sam",
+   "color": "#e15759"
+  }
+ ],
+ "phrases": [
+  {
+   "id": "p1",
+   "start": 0.5,
+   "end": 6.67,
+   "text": "Okay so the question is should our school ban phones during the whole school day",
+   "source": "webspeech"
+  },
+  {
+   "id": "p2",
+   "start": 7.47,
+   "end": 15.18,
+   "text": "I think yes because people are on their phones in class and they don't pay attention to the lesson.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p3",
+   "start": 15.38,
+   "end": 20.4,
+   "text": "But what about emergencies like if your parents need to reach you",
+   "source": "webspeech"
+  },
+  {
+   "id": "p4",
+   "start": 21.0,
+   "end": 26.78,
+   "text": "That's true but the office has a phone so parents can call the office.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p5",
+   "start": 27.68,
+   "end": 33.85,
+   "text": "How do you know the office would actually get the message to you in time?",
+   "source": "webspeech"
+  },
+  {
+   "id": "p6",
+   "start": 34.85,
+   "end": 37.94,
+   "text": "I guess I don't know for sure.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p7",
+   "start": 39.44,
+   "end": 40.22,
+   "text": "Yeah.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p8",
+   "start": 40.32,
+   "end": 49.95,
+   "text": "For example last year when the fire alarm went off nobody could find their parents and the office line was busy the whole time",
+   "source": "webspeech"
+  },
+  {
+   "id": "p9",
+   "start": 50.65,
+   "end": 57.97,
+   "text": "Building on what Priya said, maybe the rule could be phones stay in lockers unless there's an emergency.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p10",
+   "start": 58.12,
+   "end": 61.98,
+   "text": "But then who decides what counts as an emergency",
+   "source": "webspeech"
+  },
+  {
+   "id": "p11",
+   "start": 63.18,
+   "end": 64.73,
+   "text": "Is that allowed?",
+   "source": "webspeech"
+  },
+  {
+   "id": "p12",
+   "start": 65.63,
+   "end": 67.95,
+   "text": "What do you think Sam?",
+   "source": "webspeech"
+  },
+  {
+   "id": "p13",
+   "start": 69.35,
+   "end": 73.6,
+   "text": "I think phones are distracting so maybe lockers is fine.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p14",
+   "start": 74.4,
+   "end": 86.72,
+   "text": "I agree with Sam because the research says students do better on tests when phones are out of the room, like twenty percent of kids said they get distracted by phones",
+   "source": "webspeech"
+  },
+  {
+   "id": "p15",
+   "start": 87.32,
+   "end": 90.8,
+   "text": "Which research though? Where did you read that?",
+   "source": "webspeech"
+  },
+  {
+   "id": "p16",
+   "start": 91.7,
+   "end": 97.48,
+   "text": "It was in the article we read in class, the one from the news.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p17",
+   "start": 98.48,
+   "end": 106.19,
+   "text": "So it seems like most of us think the phones should be in lockers but with an emergency plan.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p18",
+   "start": 108.19,
+   "end": 113.59,
+   "text": "Okay can we talk about homework now? Should teachers give homework on weekends?",
+   "source": "webspeech"
+  },
+  {
+   "id": "p19",
+   "start": 114.89,
+   "end": 115.67,
+   "text": "No.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p20",
+   "start": 116.47,
+   "end": 122.25,
+   "text": "I don't think weekend homework helps because kids need rest and time with family",
+   "source": "webspeech"
+  },
+  {
+   "id": "p21",
+   "start": 122.45,
+   "end": 127.85,
+   "text": "What if the homework is just reading though would that still be bad",
+   "source": "webspeech"
+  },
+  {
+   "id": "p22",
+   "start": 128.75,
+   "end": 135.69,
+   "text": "Reading is different, I see your point, but it still depends on how much reading there is.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p23",
+   "start": 136.39,
+   "end": 144.48,
+   "text": "My cousin's school has no weekend homework and their grades went up so homework might not even matter that much",
+   "source": "webspeech"
+  },
+  {
+   "id": "p24",
+   "start": 144.58,
+   "end": 151.13,
+   "text": "Why do you think their grades went up? Maybe it was something else, like better teachers.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p25",
+   "start": 151.93,
+   "end": 156.95,
+   "text": "That's a good point, maybe it was the teachers, I'm not sure.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p26",
+   "start": 158.05,
+   "end": 160.76,
+   "text": "Do we have homework this weekend?",
+   "source": "webspeech"
+  },
+  {
+   "id": "p27",
+   "start": 161.36,
+   "end": 164.07,
+   "text": "Ha, yes we do, for math.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p28",
+   "start": 164.97,
+   "end": 173.45,
+   "text": "If kids are more rested then they might actually learn more during the week, so less weekend homework could help grades.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p29",
+   "start": 173.7,
+   "end": 179.48,
+   "text": "I disagree with Maya, some kids need practice or they forget everything by Monday",
+   "source": "webspeech"
+  },
+  {
+   "id": "p30",
+   "start": 180.18,
+   "end": 188.66,
+   "text": "Are you assuming everyone has time to practice at home? Some kids have jobs or take care of siblings on weekends.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p31",
+   "start": 189.66,
+   "end": 193.52,
+   "text": "Okay that's fair, not everyone has the same weekend.",
+   "source": "webspeech"
+  },
+  {
+   "id": "p32",
+   "start": 194.72,
+   "end": 196.27,
+   "text": "I like weekends.",
+   "source": "webspeech"
+  }
+ ],
+ "windows": [],
+ "turns": [
+  {
+   "id": "t1",
+   "speaker": 0,
+   "start": 0.5,
+   "end": 6.67,
+   "text": "Okay so the question is should our school ban phones during the whole school day",
+   "signals": {}
+  },
+  {
+   "id": "t2",
+   "speaker": 1,
+   "start": 7.47,
+   "end": 15.18,
+   "text": "I think yes because people are on their phones in class and they don't pay attention to the lesson.",
+   "signals": {}
+  },
+  {
+   "id": "t3",
+   "speaker": 2,
+   "start": 15.38,
+   "end": 20.4,
+   "text": "But what about emergencies like if your parents need to reach you",
+   "signals": {}
+  },
+  {
+   "id": "t4",
+   "speaker": 1,
+   "start": 21.0,
+   "end": 26.78,
+   "text": "That's true but the office has a phone so parents can call the office.",
+   "signals": {}
+  },
+  {
+   "id": "t5",
+   "speaker": 0,
+   "start": 27.68,
+   "end": 33.85,
+   "text": "How do you know the office would actually get the message to you in time?",
+   "signals": {}
+  },
+  {
+   "id": "t6",
+   "speaker": 1,
+   "start": 34.85,
+   "end": 37.94,
+   "text": "I guess I don't know for sure.",
+   "signals": {}
+  },
+  {
+   "id": "t7",
+   "speaker": 3,
+   "start": 39.44,
+   "end": 40.22,
+   "text": "Yeah.",
+   "signals": {}
+  },
+  {
+   "id": "t8",
+   "speaker": 2,
+   "start": 40.32,
+   "end": 49.95,
+   "text": "For example last year when the fire alarm went off nobody could find their parents and the office line was busy the whole time",
+   "signals": {}
+  },
+  {
+   "id": "t9",
+   "speaker": 0,
+   "start": 50.65,
+   "end": 57.97,
+   "text": "Building on what Priya said, maybe the rule could be phones stay in lockers unless there's an emergency.",
+   "signals": {}
+  },
+  {
+   "id": "t10",
+   "speaker": 1,
+   "start": 58.12,
+   "end": 61.98,
+   "text": "But then who decides what counts as an emergency",
+   "signals": {}
+  },
+  {
+   "id": "t11",
+   "speaker": 3,
+   "start": 63.18,
+   "end": 64.73,
+   "text": "Is that allowed?",
+   "signals": {}
+  },
+  {
+   "id": "t12",
+   "speaker": 0,
+   "start": 65.63,
+   "end": 67.95,
+   "text": "What do you think Sam?",
+   "signals": {}
+  },
+  {
+   "id": "t13",
+   "speaker": 3,
+   "start": 69.35,
+   "end": 73.6,
+   "text": "I think phones are distracting so maybe lockers is fine.",
+   "signals": {}
+  },
+  {
+   "id": "t14",
+   "speaker": 2,
+   "start": 74.4,
+   "end": 86.72,
+   "text": "I agree with Sam because the research says students do better on tests when phones are out of the room, like twenty percent of kids said they get distracted by phones",
+   "signals": {}
+  },
+  {
+   "id": "t15",
+   "speaker": 1,
+   "start": 87.32,
+   "end": 90.8,
+   "text": "Which research though? Where did you read that?",
+   "signals": {}
+  },
+  {
+   "id": "t16",
+   "speaker": 2,
+   "start": 91.7,
+   "end": 97.48,
+   "text": "It was in the article we read in class, the one from the news.",
+   "signals": {}
+  },
+  {
+   "id": "t17",
+   "speaker": 0,
+   "start": 98.48,
+   "end": 106.19,
+   "text": "So it seems like most of us think the phones should be in lockers but with an emergency plan.",
+   "signals": {}
+  },
+  {
+   "id": "t18",
+   "speaker": 1,
+   "start": 108.19,
+   "end": 113.59,
+   "text": "Okay can we talk about homework now? Should teachers give homework on weekends?",
+   "signals": {}
+  },
+  {
+   "id": "t19",
+   "speaker": 3,
+   "start": 114.89,
+   "end": 115.67,
+   "text": "No.",
+   "signals": {}
+  },
+  {
+   "id": "t20",
+   "speaker": 2,
+   "start": 116.47,
+   "end": 122.25,
+   "text": "I don't think weekend homework helps because kids need rest and time with family",
+   "signals": {}
+  },
+  {
+   "id": "t21",
+   "speaker": 0,
+   "start": 122.45,
+   "end": 127.85,
+   "text": "What if the homework is just reading though would that still be bad",
+   "signals": {}
+  },
+  {
+   "id": "t22",
+   "speaker": 2,
+   "start": 128.75,
+   "end": 135.69,
+   "text": "Reading is different, I see your point, but it still depends on how much reading there is.",
+   "signals": {}
+  },
+  {
+   "id": "t23",
+   "speaker": 1,
+   "start": 136.39,
+   "end": 144.48,
+   "text": "My cousin's school has no weekend homework and their grades went up so homework might not even matter that much",
+   "signals": {}
+  },
+  {
+   "id": "t24",
+   "speaker": 0,
+   "start": 144.58,
+   "end": 151.13,
+   "text": "Why do you think their grades went up? Maybe it was something else, like better teachers.",
+   "signals": {}
+  },
+  {
+   "id": "t25",
+   "speaker": 1,
+   "start": 151.93,
+   "end": 156.95,
+   "text": "That's a good point, maybe it was the teachers, I'm not sure.",
+   "signals": {}
+  },
+  {
+   "id": "t26",
+   "speaker": 3,
+   "start": 158.05,
+   "end": 160.76,
+   "text": "Do we have homework this weekend?",
+   "signals": {}
+  },
+  {
+   "id": "t27",
+   "speaker": 2,
+   "start": 161.36,
+   "end": 164.07,
+   "text": "Ha, yes we do, for math.",
+   "signals": {}
+  },
+  {
+   "id": "t28",
+   "speaker": 0,
+   "start": 164.97,
+   "end": 173.45,
+   "text": "If kids are more rested then they might actually learn more during the week, so less weekend homework could help grades.",
+   "signals": {}
+  },
+  {
+   "id": "t29",
+   "speaker": 1,
+   "start": 173.7,
+   "end": 179.48,
+   "text": "I disagree with Maya, some kids need practice or they forget everything by Monday",
+   "signals": {}
+  },
+  {
+   "id": "t30",
+   "speaker": 2,
+   "start": 180.18,
+   "end": 188.66,
+   "text": "Are you assuming everyone has time to practice at home? Some kids have jobs or take care of siblings on weekends.",
+   "signals": {}
+  },
+  {
+   "id": "t31",
+   "speaker": 1,
+   "start": 189.66,
+   "end": 193.52,
+   "text": "Okay that's fair, not everyone has the same weekend.",
+   "signals": {}
+  },
+  {
+   "id": "t32",
+   "speaker": 3,
+   "start": 194.72,
+   "end": 196.27,
+   "text": "I like weekends.",
+   "signals": {}
+  }
+ ],
+ "analysis": {
+  "rules": null,
+  "claude": null
+ }
+}

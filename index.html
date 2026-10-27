@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Discussion Lens</title>
+  <meta name="description" content="Record a discussion and see a per-person dashboard of participation and thinking. Runs in your browser.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-head">
+    <div class="wrap">
+      <a class="brand" href="./">Discussion Lens</a>
+      <a class="btn small" href="report.html#sample">Open sample dashboard</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section>
+      <h1>Discussion Lens</h1>
+      <!-- COPY: James -->
+      <p class="muted">Record or upload a discussion. Get a dashboard for each person: quotes, topics, participation and thinking.</p>
+    </section>
+
+    <section class="notice" aria-label="Privacy">
+      <strong>Before you record</strong>
+      <ul>
+        <li>Chrome sends live audio to Google for speech recognition.</li>
+        <li>Voiceprints, transcripts and dashboards stay on this laptop. Nothing is uploaded.</li>
+        <li>Get consent before recording students.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Setup</h2>
+      <div class="row">
+        <div class="field">
+          <label for="ageBand">Age band</label>
+          <select id="ageBand"></select>
+        </div>
+        <div class="field">
+          <label for="speakerCount">Number of speakers (optional)</label>
+          <input id="speakerCount" type="number" min="1" max="12" inputmode="numeric" placeholder="Auto">
+        </div>
+      </div>
+    </section>
+
+    <div class="grid-2">
+      <section class="card" aria-labelledby="liveTitle">
+        <h2 id="liveTitle">Record live</h2>
+        <p id="unsupported" class="notice warn" hidden>Live recording needs Chrome or Edge on a laptop. Use <a href="#uploadTitle">Upload a recording</a> instead.</p>
+        <div class="row">
+          <button id="startBtn" class="btn primary" type="button">Start</button>
+          <button id="stopBtn" class="btn rec" type="button" hidden>Stop</button>
+          <span id="recIndicator" hidden><span class="live-dot" aria-hidden="true"></span> <span id="timer" class="timer">0:00</span></span>
+        </div>
+        <p id="liveStatus" class="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card" aria-labelledby="uploadTitle">
+        <h2 id="uploadTitle">Upload a recording</h2>
+        <div class="field">
+          <label for="uploadFile">Audio or video file</label>
+          <input id="uploadFile" type="file" accept="audio/*,video/*">
+        </div>
+        <div id="uploadProgressWrap" class="stack" hidden>
+          <progress id="uploadProgress" max="100"></progress>
+        </div>
+        <p id="uploadStatus" class="status" role="status" aria-live="polite"></p>
+      </section>
+    </div>
+
+    <section id="livePanel" class="card" hidden aria-label="Live view">
+      <h2>Live</h2>
+      <div class="grid-2">
+        <div>
+          <h3>Talk time</h3>
+          <div id="liveBars" class="bars"></div>
+        </div>
+        <div>
+          <h3>Transcript</h3>
+          <div id="liveTranscript" class="live-transcript" aria-live="off"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="pastTitle">
+      <div class="row" style="justify-content: space-between">
+        <h2 id="pastTitle" style="margin: 0">Past sessions</h2>
+        <span><input id="importFile" class="sr-only" type="file" accept="application/json,.json"><label class="btn small" for="importFile">Import JSON</label></span>
+      </div>
+      <p id="pastStatus" class="status" role="status" aria-live="polite"></p>
+      <ul id="sessionList" class="sessions"></ul>
+    </section>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "discussion-lens",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "bun test tests/",
+    "dev": "bunx serve -l 4317 ."
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@huggingface/transformers": "4.3.1"
+  }
+}
