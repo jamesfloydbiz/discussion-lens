@@ -44,6 +44,12 @@ export function workerRpc(worker, { name = 'Worker', onOther = () => {} } = {}) 
   };
 }
 
+// Safari reloads a tab once it uses too much memory (an uploaded 6-min seminar did it). WebGPU sessions
+// cost much more memory than CPU ones (Whisper: +1.7 GB vs +1.1 GB, measured in Chromium), so Safari runs
+// the models on the CPU. Add ?lowmem to the page URL to do the same in any browser.
+export const LOW_MEMORY = typeof navigator !== 'undefined' &&
+  (/^((?!chrome|chromium|crios|fxios|edg|android).)*safari/i.test(navigator.userAgent) || /[?&]lowmem\b/.test(globalThis.location?.search || ''));
+
 // Speaker worker client, shared with upload.js.
 // openSpeakerModel(onProgress) → { ready: Promise<{device, dim}>, embed(t, audio) → Promise<Float32Array>, onDead(f), close() }
 // `ready` and every pending embed reject if the worker fails at any point.
@@ -65,7 +71,7 @@ export function openSpeakerModel(onProgress = () => {}, makeWorker = () => new W
     },
   });
   rpc.onDead(readyRej);
-  rpc.send({ type: 'init' });
+  rpc.send({ type: 'init', cpu: LOW_MEMORY });
   return {
     ready,
     embed: (t, audio) => rpc.call({ type: 'embed', t, audio }, [audio.buffer]).then(m => m.vector),

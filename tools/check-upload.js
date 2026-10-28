@@ -80,7 +80,7 @@ if (process.argv.includes('--no-whisper')) {
   const cuts = blockCuts(audio);
   phrases = [];
   for (let b = 0; b + 1 < cuts.length; b++) {
-    const out = await asr(audio.slice(Math.round(cuts[b] * SR), Math.round(cuts[b + 1] * SR)), { chunk_length_s: 30, return_timestamps: true });
+    const out = await asr(audio.slice(Math.round(cuts[b] * SR), Math.round(cuts[b + 1] * SR)), { return_timestamps: true });
     phrases.push(...chunksToPhrases(out.chunks, cuts[b], cuts[b + 1]));
   }
   console.log(`phrases: ${phrases.length} from Whisper (${ASR_MODEL}, ${((performance.now() - t0) / 1000).toFixed(0)} s, ${cuts.length - 1} blocks)`);

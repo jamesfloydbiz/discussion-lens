@@ -64,7 +64,8 @@ export function regroup(vectors, { k = 0, threshold = 0, minShare = 0.03 } = {})
   for (let kk = 2; kk <= Math.min(MAX_SPEAKERS, vectors.length - 1); kk++) {
     const labels = groupInto(vectors, { k: kk, minShare });
     const n = new Set(labels).size;
-    if (n < kk) break; // small groups were folded away: more speakers won't help
+    // Small groups can be folded away (k=2 became 1 on a 6-voice seminar), so keep trying larger k.
+    if (n < 2) continue;
     const s = silhouette(vectors, labels);
     if (!best || s > best.s) best = { s, labels };
   }

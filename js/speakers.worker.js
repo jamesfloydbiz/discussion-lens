@@ -1,5 +1,5 @@
 // Voiceprint worker (module worker). 16 kHz mono windows in, L2-normalised 256-d WeSpeaker embeddings out.
-// in:  {type:'init'} · {type:'embed', id, t, audio: Float32Array}
+// in:  {type:'init', cpu?: true} · {type:'embed', id, t, audio: Float32Array}
 // out: {type:'progress', file, status, loaded, total, progress} · {type:'ready', device, dim}
 //      {type:'embedding', id, t, vector} · {type:'error', id?, message}
 import { AutoModel, AutoFeatureExtractor, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.1';
@@ -19,10 +19,10 @@ async function embed(audio) {
   return normalize(out.last_hidden_state.data);   // WeSpeaker's only output: [1, 256]
 }
 
-async function load() {
+async function load(cpu) {
   const progress_callback = p => { if (p.status === 'progress' || p.status === 'done') self.postMessage({ type: 'progress', ...p }); };
   fe = await AutoFeatureExtractor.from_pretrained(MODEL);
-  const hasGpu = !!(self.navigator && navigator.gpu && await navigator.gpu.requestAdapter().catch(() => null));
+  const hasGpu = !cpu && !!(self.navigator && navigator.gpu && await navigator.gpu.requestAdapter().catch(() => null));
   for (const device of hasGpu ? ['webgpu', 'wasm'] : ['wasm']) {
     try {
       model = await AutoModel.from_pretrained(MODEL, { dtype: 'fp32', device, progress_callback });
@@ -41,7 +41,7 @@ async function load() {
 let queue = Promise.resolve();
 self.onmessage = ({ data: msg }) => {
   if (msg.type === 'init') {
-    loading ||= load().then(() => true, e => {
+    loading ||= load(msg.cpu).then(() => true, e => {
       loading = null;   // a later init may retry
       self.postMessage({ type: 'error', message: 'Voice model failed to load: ' + e.message });
       return false;

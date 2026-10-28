@@ -45,7 +45,7 @@ test('workerRpc: messageerror also kills it', async () => {
 
 test('speaker model: crash after ready rejects pending embeds', async () => {
   const w = mockWorker(), model = openSpeakerModel(() => {}, () => w);
-  expect(w.posted[0]).toEqual({ type: 'init' });
+  expect(w.posted[0]).toEqual({ type: 'init', cpu: false });
   w.reply({ type: 'ready', device: 'wasm', dim: 256 });
   expect(await model.ready).toEqual({ device: 'wasm', dim: 256 });
   const e1 = model.embed(0, new Float32Array(10)), e2 = model.embed(0.75, new Float32Array(10));
