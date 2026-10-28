@@ -34,12 +34,16 @@ Share of speech time given the right speaker (best match of groups to people):
 | Classroom seminar, ~7 voices + narrator, 6 min, hand-labelled from the transcript (bun) | 67.0% | 98.3% upload · 94.4% live method |
 | Same seminar, uploaded in the browser (WebGPU / `?lowmem`) | ~67% | 98.7% (10 groups) / 89.9% (8 groups) |
 | 5 synthetic voices, 3.7 min, real Whisper phrases (bun) | 88.6% | 95.9% |
+| Middle-school debate tournament, 60 min, 6 debaters + moderator, timekeeper, host, 3 judges; scored on the debaters' 12 speeches | ~70% (browser) | 53% count blank · 70% with 12 entered (bun) |
 | Podcast, 2 real voices, 10 min (no labels kept; count check only) | 96.1% | 2 speakers found, 295 s vs 288 s |
 
-Bigger voice models (WeSpeaker ResNet221/293, CAM++) did not beat ResNet34 on the seminar; the gain came from longer audio per voiceprint. Known weaknesses: similar voices can still share a group (Lily and Avery on the `?lowmem` run), the count can come out 1–2 high with spare groups holding a few seconds each, and labels are only as good as one hand-labelled clip. `tools/check-upload.js` scores any recording with reference labels; `spike/sem/eval.js` (local only) is the seminar comparison.
+Bigger voice models (WeSpeaker ResNet221/293, CAM++) did not beat ResNet34 on the seminar; the gain came from longer audio per voiceprint. On the debate, the pyannote 3 recipe (segmentation-3.0 + the same voiceprints, via sherpa-onnx) scored 60% at 9–15 groups and 82.5% only when it split the room into 30 groups, so similar young voices through a room mic and PA remain the hard case for both. Known weaknesses: similar voices can still share a group (Lily and Avery on the `?lowmem` run), the count can come out 1–2 high with spare groups holding a few seconds each, and labels are only as good as one hand-labelled clip. `tools/check-upload.js` scores any recording with reference labels; `spike/sem/eval.js` (local only) is the seminar comparison.
+
+## Invented text
+Whisper writes text over silence and background noise (a looped line 26 times; "I'm going to make a video about this" over a judges' break). `dropInvented` in `js/upload.js` drops phrases with almost no voiced audio, loops of 3+ identical phrases, and a few words stretched over 6+ s of sound. On the debate it removed all of these; the real lines it also dropped were short ones stretched over silence ("Okay.", "30 seconds is up.").
 
 ## Memory
-An upload runs Whisper, then the voice model, never both at once. Safari reloads a tab that uses too much memory, so on Safari both models run on the CPU instead of WebGPU. Add `?lowmem` to the URL to do the same in any browser. Peak memory on the 6-min clip, measured in Chromium: 1.9 GB on WebGPU, 1.3 GB with `?lowmem` (it was 2.4 GB with both models loaded together).
+An upload runs Whisper, then the voice model, never both at once. Safari reloads a tab that uses too much memory, so on Safari both models run on the CPU instead of WebGPU. Add `?lowmem` to the URL to do the same in any browser. Peak memory on the 6-min clip, measured in Chromium: 1.9 GB on WebGPU, 1.3 GB with `?lowmem` (it was 2.4 GB with both models loaded together). Long MP3 and WAV files are decoded in 4 MB pieces: an hour-long MP3 peaked at 657 MB instead of 2.95 GB. Other formats (e.g. .m4a) are still decoded whole. The hour-long debate took 43 min with `?lowmem` in a hidden browser pane.
 
 ## Layout
 - `docs/CONTRACTS.md`: data shapes shared by every module

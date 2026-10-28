@@ -52,6 +52,33 @@ export function chunksToPhrases(chunks, offset, blockEnd) {
   return out;
 }
 
+// Whisper invents text over silence and background noise ("I'm going to make a video about this." over a
+// judges' break; one line looped 26 times). The break was loud, so loudness alone can't catch it. Dropped:
+// phrases with almost no voiced audio; loops of 3+ identical phrases in a row; a few words over 6+ s of
+// mostly voiced sound (real lines stretched over a pause are mostly silent); and other copies of a looped
+// or stretched text. Runs of a repeated 1–4 word chunk inside a phrase collapse.
+// voicedTimes: start times of voiced 1.5 s windows (planWindows).
+export function dropInvented(phrases, voicedTimes) {
+  const key = t => t.toLowerCase().replace(/[^a-z0-9' ]/g, '').trim();
+  const voiced = (a, b) => {
+    let v = 0;
+    for (const t of voicedTimes) if (t < b && t + WIN > a) v += Math.min(b, t + WIN) - Math.max(a, t);
+    return Math.min(1, v / (b - a) / (WIN / HOP));   // windows overlap by WIN/HOP
+  };
+  const ps = phrases.map(p => ({ ...p, text: p.text.replace(/\b((?:[\w']+\s+){0,3}[\w']+)(?:[\s,]+\1\b){2,}/gi, '$1') }));
+  const bad = new Set(), invented = new Set();
+  ps.forEach((p, i) => {
+    const dur = p.end - p.start, words = p.text.split(/\s+/).filter(Boolean).length, v = dur > 2 ? voiced(p.start, p.end) : 1;
+    if (v < 0.1) bad.add(i);
+    if (dur >= 6 && words / dur < 0.5 && v >= 0.6) invented.add(i);
+    let run = i; while (run + 1 < ps.length && key(ps[run + 1].text) === key(p.text)) run++;
+    if (run - i >= 2) for (let j = i; j <= run; j++) invented.add(j);
+  });
+  invented.forEach(i => bad.add(i));
+  const badText = new Set([...invented].map(i => key(ps[i].text)).filter(k => k.split(' ').length >= 3));
+  return ps.filter((p, i) => !bad.has(i) && !badText.has(key(p.text)));
+}
+
 // Speakers are found in two passes. 1.5 s window voiceprints are too short to tell similar voices apart
 // (67% on a classroom seminar) but do show where a phrase switches speaker, so phrases are cut there.
 // Then each piece gets one voiceprint from its own audio and pieces are grouped.
@@ -62,10 +89,15 @@ export function segmentPhrases(phrases, times, vectors, k = 0) {
     .map(p => ({ start: p.start, end: p.end }));
 }
 
+// Voiceprints of long pieces use their middle MAX_PIECE_SEC, bounding the work per piece. On an hour-long
+// debate a 5 s, 8 s or no cap scored the same (spike/sem/debate.js).
+const MAX_PIECE_SEC = 8;
+
 // The audio a piece's voiceprint is taken from. Whisper's phrase ends run 0.3–0.8 s late and pick up the
 // next voice, so pieces over 2.5 s are trimmed (whole pieces: 82.5% on the synthetic test, trimmed 96.0%).
-export function pieceAudio(audio, p) {
-  const [a, b] = p.end - p.start > 2.5 ? [p.start + 0.2, p.end - 0.6] : [p.start, Math.max(p.end, p.start + WIN)];
+export function pieceAudio(audio, p, maxSec = MAX_PIECE_SEC) {
+  let [a, b] = p.end - p.start > 2.5 ? [p.start + 0.2, p.end - 0.6] : [p.start, Math.max(p.end, p.start + WIN)];
+  if (b - a > maxSec) { const mid = (a + b) / 2; a = mid - maxSec / 2; b = mid + maxSec / 2; }
   return audio.slice(Math.round(a * SR), Math.round(b * SR));
 }
 
@@ -228,7 +260,7 @@ export async function processUpload(file, { expectedSpeakers = 0, onProgress = (
 
   // One model at a time: both loaded together took 2.4 GB on a 6-min file, enough for Safari to reload the tab.
   // Transcript first (Whisper block by block), then voiceprints.
-  const phrases = [];
+  let phrases = [];
   const asr = openAsr(onProgress);
   try {
     await asr.ready;
@@ -240,6 +272,8 @@ export async function processUpload(file, { expectedSpeakers = 0, onProgress = (
     }
     onProgress({ stage: 'transcribe', progress: 1 });
   } finally { asr.close(); }
+  const times = planWindows(audio);
+  phrases = dropInvented(phrases, times);
 
   // Voiceprints: every voiced window (to find speaker changes), then each phrase piece as a whole.
   let pieces, vectors;
@@ -259,7 +293,6 @@ export async function processUpload(file, { expectedSpeakers = 0, onProgress = (
       await Promise.all(Array.from({ length: IN_FLIGHT }, lane));
       return out;
     };
-    const times = planWindows(audio);
     const winVectors = await embedAll(times.length, i => audio.slice(Math.round(times[i] * SR), Math.round((times[i] + WIN) * SR)), 0, 0.7);
     pieces = segmentPhrases(phrases, times, winVectors, expectedSpeakers || 0);
     vectors = await embedAll(pieces.length, i => pieceAudio(audio, pieces[i]), 0.7, 1);

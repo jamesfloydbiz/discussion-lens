@@ -135,3 +135,24 @@ test('meanInside averages only the windows inside a span', () => {
   const m = meanInside([0, 2, 4], v, 0, 3.5, 1.5);
   expect(m[0]).toBeCloseTo(Math.SQRT1_2); expect(m[1]).toBeCloseTo(Math.SQRT1_2);
 });
+
+test('dropInvented removes Whisper text over silence and noise, keeps real speech', async () => {
+  const { dropInvented } = await import('../js/upload.js');
+  const voiced = [];
+  for (let t = 0; t < 100; t += 0.75) voiced.push(t);              // 0–100 s: sound throughout
+  const p = (start, end, text) => ({ start, end, text });
+  const out = dropInvented([
+    p(0, 4, 'I think the ending is ironic because the necklace was fake.'),
+    p(10, 36, "I'm going to make a video about this."),              // a few words over 26 s of noise
+    p(40, 41, 'Go to the school.'), p(41, 42, 'Go to the school.'), p(42, 43, 'Go to the school.'),   // loop
+    p(50, 51, "I'm going to make a video about this."),               // another copy of a stretched line
+    p(60, 63, 'We saved of the average of the average of the average water.'),
+    p(120, 130, 'Okay.'),                                             // no voiced audio under it
+    p(70, 72, 'Thank you for your time.'),
+  ], voiced);
+  expect(out.map(x => x.text)).toEqual([
+    'I think the ending is ironic because the necklace was fake.',
+    'We saved of the average water.',
+    'Thank you for your time.',
+  ]);
+});

@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { AutoModel, AutoFeatureExtractor, pipeline } from '@huggingface/transformers';
 import { SR, WIN } from '../js/audio.js';
-import { planWindows, blockCuts, chunksToPhrases, assembleCapture, segmentPhrases, pieceAudio, ASR_MODEL } from '../js/upload.js';
+import { planWindows, blockCuts, chunksToPhrases, dropInvented, assembleCapture, segmentPhrases, pieceAudio, ASR_MODEL } from '../js/upload.js';
 import { OnlineClusterer, normalize } from '../js/clustering.js';
 import { buildTurns, speakerRuns } from '../js/turns.js';
 
@@ -83,6 +83,7 @@ if (process.argv.includes('--no-whisper')) {
     const out = await asr(audio.slice(Math.round(cuts[b] * SR), Math.round(cuts[b + 1] * SR)), { return_timestamps: true });
     phrases.push(...chunksToPhrases(out.chunks, cuts[b], cuts[b + 1]));
   }
+  phrases = dropInvented(phrases, times);
   console.log(`phrases: ${phrases.length} from Whisper (${ASR_MODEL}, ${((performance.now() - t0) / 1000).toFixed(0)} s, ${cuts.length - 1} blocks)`);
 }
 
