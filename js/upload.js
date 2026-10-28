@@ -83,12 +83,78 @@ export function assembleCapture({ phrases, pieces, vectors, expectedSpeakers = 0
 
 // ---- browser ----
 
+// Decoding a whole file holds it at full rate: an hour of 44.1 kHz stereo MP3 peaked at 2.95 GB in Chromium,
+// enough for Safari to reload the tab. MP3 (independent frames) and WAV (raw samples) are decoded in pieces
+// of PIECE_BYTES instead; other formats (e.g. .m4a) are decoded whole.
+const PIECE_BYTES = 4 << 20;   // ~4 min of 128 kbps MP3
+
 export async function decodeTo16k(file) {
-  const buf = await file.arrayBuffer();
-  const decoded = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(buf);
-  const ctx = new OfflineAudioContext(1, Math.ceil(decoded.duration * SR), SR);   // 1 channel = mono downmix
-  const src = ctx.createBufferSource(); src.buffer = decoded; src.connect(ctx.destination); src.start();
-  return (await ctx.startRendering()).getChannelData(0);
+  const head = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+  const tag = String.fromCharCode(...head.subarray(0, 4)), wave = String.fromCharCode(...head.subarray(8, 12));
+  const isMp3 = tag.startsWith('ID3') || (head[0] === 0xff && (head[1] & 0xe0) === 0xe0) || /\.mp3$/i.test(file.name || '');
+  try {
+    if (isMp3 && file.size > PIECE_BYTES) return concat(await mp3Pieces(file));
+    if (tag === 'RIFF' && wave === 'WAVE' && file.size > PIECE_BYTES) return concat(await wavPieces(file));
+  } catch (e) { /* a piece would not decode: fall back to the whole file */ }
+  return mono(await decode16k(await file.arrayBuffer()));
+}
+
+// decodeAudioData resamples to its context's rate, so each piece arrives at 16 kHz.
+async function decode16k(buf) {
+  try { return await new OfflineAudioContext(1, 1, SR).decodeAudioData(buf); }
+  catch (e) {   // a browser that won't decode at 16 kHz: decode at 44.1 kHz and resample by rendering
+    const full = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(buf);
+    const ctx = new OfflineAudioContext(1, Math.ceil(full.duration * SR), SR);   // 1 channel = mono downmix
+    const src = ctx.createBufferSource(); src.buffer = full; src.connect(ctx.destination); src.start();
+    return ctx.startRendering();
+  }
+}
+
+function mono(buf) {
+  if (buf.numberOfChannels === 1) return buf.getChannelData(0);
+  const out = new Float32Array(buf.length), chans = buf.numberOfChannels;
+  for (let c = 0; c < chans; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < out.length; i++) out[i] += d[i] / chans;
+  }
+  return out;
+}
+
+function concat(parts) {
+  const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0; for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+// MP3 decoders resync at the next frame header, so byte slices decode on their own. ~25 ms is lost per cut
+// (0.3 s over an hour vs ffmpeg); transcript and voiceprints share this audio, so they stay aligned.
+async function mp3Pieces(file) {
+  const parts = [];
+  for (let o = 0; o < file.size; o += PIECE_BYTES) parts.push(mono(await decode16k(await file.slice(o, o + PIECE_BYTES).arrayBuffer())));
+  return parts;
+}
+
+// WAV: copy the header with the data size patched, so each slice of samples is a small WAV of its own.
+async function wavPieces(file) {
+  const buf = new DataView(await file.slice(0, Math.min(file.size, 1 << 16)).arrayBuffer());
+  let p = 12, align = 0, dataAt = -1, dataLen = 0;
+  while (p + 8 <= buf.byteLength) {
+    const id = String.fromCharCode(buf.getUint8(p), buf.getUint8(p + 1), buf.getUint8(p + 2), buf.getUint8(p + 3)), len = buf.getUint32(p + 4, true);
+    if (id === 'fmt ') align = buf.getUint16(p + 20, true);
+    if (id === 'data') { dataAt = p + 8; dataLen = Math.min(len, file.size - dataAt); break; }
+    p += 8 + len + (len & 1);
+  }
+  if (dataAt < 0 || !align) throw new Error('WAV without fmt/data');
+  const header = new Uint8Array(await file.slice(0, dataAt).arrayBuffer()), step = PIECE_BYTES - (PIECE_BYTES % align), parts = [];
+  for (let o = 0; o < dataLen; o += step) {
+    const body = new Uint8Array(await file.slice(dataAt + o, dataAt + Math.min(dataLen, o + step)).arrayBuffer());
+    const piece = new Uint8Array(header.length + body.length);
+    piece.set(header); piece.set(body, header.length);
+    const v = new DataView(piece.buffer);
+    v.setUint32(4, piece.length - 8, true); v.setUint32(dataAt - 4, body.length, true);
+    parts.push(mono(await decode16k(piece.buffer)));
+  }
+  return parts;
 }
 
 // Whisper worker, inline so it ships with this module.
