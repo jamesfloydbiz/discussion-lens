@@ -1,8 +1,9 @@
 // Uploaded recording → Capture: decode, resample to 16 kHz mono, Whisper transcript (worker),
-// voiceprints for every voiced window (speaker worker), final regroup.
+// voiceprints (speaker worker): windows find speaker changes, then one per phrase piece, grouped into speakers.
 import { NoiseGate, rms, SR, WIN, HOP } from './audio.js';
 import { openSpeakerModel, packEmbeddings, workerRpc, LOW_MEMORY } from './live.js';
-import { regroup } from './clustering.js';
+import { labelPhrases, regroup } from './clustering.js';
+import { splitPhrases } from './turns.js';
 
 export const ASR_MODEL = 'onnx-community/whisper-base.en';
 // Whisper hears 30 s at a time. Its own chunking overlaps windows and repeated sentences where they were
@@ -51,13 +52,31 @@ export function chunksToPhrases(chunks, offset, blockEnd) {
   return out;
 }
 
-// Windows + vectors (time order) + phrases → Capture.
-export function assembleCapture({ phrases, times, vectors, expectedSpeakers = 0, durationSec }) {
-  const labels = regroup(vectors, { k: expectedSpeakers || 0 });
+// Speakers are found in two passes. 1.5 s window voiceprints are too short to tell similar voices apart
+// (67% on a classroom seminar) but do show where a phrase switches speaker, so phrases are cut there.
+// Then each piece gets one voiceprint from its own audio and pieces are grouped.
+// Speech time labelled correctly: seminar (~7 voices) 67% → 94.5%; synthetic 5 voices 88.6% → 96.0%.
+export function segmentPhrases(phrases, times, vectors, k = 0) {
+  const labels = regroup(vectors, { k });
+  return splitPhrases(phrases, times.map((t, i) => ({ t, dur: WIN, speaker: labels[i] })))
+    .map(p => ({ start: p.start, end: p.end }));
+}
+
+// The audio a piece's voiceprint is taken from. Whisper's phrase ends run 0.3–0.8 s late and pick up the
+// next voice, so pieces over 2.5 s are trimmed (whole pieces: 82.5% on the synthetic test, trimmed 96.0%).
+export function pieceAudio(audio, p) {
+  const [a, b] = p.end - p.start > 2.5 ? [p.start + 0.2, p.end - 0.6] : [p.start, Math.max(p.end, p.start + WIN)];
+  return audio.slice(Math.round(a * SR), Math.round(b * SR));
+}
+
+// Phrases + pieces with one voiceprint each (time order) → Capture. Each piece is one window.
+export function assembleCapture({ phrases, pieces, vectors, expectedSpeakers = 0, durationSec }) {
+  const labels = labelPhrases(vectors, { k: expectedSpeakers || 0 });
+  const voiced = pieces.map((p, i) => i).filter(i => vectors[i]);
   return {
     phrases: phrases.map((p, i) => ({ id: 'p' + (i + 1), start: p.start, end: p.end, text: p.text, source: 'whisper' })),
-    windows: times.map((t, i) => ({ t, dur: WIN, speaker: labels[i] })),
-    embeddings: packEmbeddings(vectors),
+    windows: voiced.map(i => ({ t: pieces[i].start, dur: pieces[i].end - pieces[i].start, speaker: labels[i] })),
+    embeddings: packEmbeddings(voiced.map(i => vectors[i])),
     durationSec,
   };
 }
@@ -142,24 +161,7 @@ export async function processUpload(file, { expectedSpeakers = 0, onProgress = (
   onProgress({ stage: 'decode', progress: 1, durationSec });
 
   // One model at a time: both loaded together took 2.4 GB on a 6-min file, enough for Safari to reload the tab.
-  // Voiceprints first (every voiced window, a few in flight at a time), then the speaker model is closed.
-  let times, vectors;
-  const speakers = openSpeakerModel(onProgress);
-  try {
-    await speakers.ready;
-    times = planWindows(audio); vectors = new Array(times.length);
-    let next = 0, done = 0;
-    const lane = async () => {
-      while (next < times.length) {
-        const i = next++, s = Math.round(times[i] * SR);
-        vectors[i] = await speakers.embed(times[i], audio.slice(s, s + Math.round(WIN * SR)));
-        if (++done % 20 === 0 || done === times.length) onProgress({ stage: 'speakers', progress: done / times.length });
-      }
-    };
-    await Promise.all(Array.from({ length: IN_FLIGHT }, lane));
-  } finally { speakers.close(); }
-
-  // Transcript: Whisper block by block.
+  // Transcript first (Whisper block by block), then voiceprints.
   const phrases = [];
   const asr = openAsr(onProgress);
   try {
@@ -173,8 +175,32 @@ export async function processUpload(file, { expectedSpeakers = 0, onProgress = (
     onProgress({ stage: 'transcribe', progress: 1 });
   } finally { asr.close(); }
 
+  // Voiceprints: every voiced window (to find speaker changes), then each phrase piece as a whole.
+  let pieces, vectors;
+  const speakers = openSpeakerModel(onProgress);
+  try {
+    await speakers.ready;
+    const embedAll = async (n, clip, from, to) => {
+      const out = new Array(n).fill(null);
+      let next = 0, done = 0;
+      const lane = async () => {
+        while (next < n) {
+          const i = next++;
+          out[i] = await speakers.embed(i, clip(i));
+          if (++done % 20 === 0 || done === n) onProgress({ stage: 'speakers', progress: from + (to - from) * done / n });
+        }
+      };
+      await Promise.all(Array.from({ length: IN_FLIGHT }, lane));
+      return out;
+    };
+    const times = planWindows(audio);
+    const winVectors = await embedAll(times.length, i => audio.slice(Math.round(times[i] * SR), Math.round((times[i] + WIN) * SR)), 0, 0.7);
+    pieces = segmentPhrases(phrases, times, winVectors, expectedSpeakers || 0);
+    vectors = await embedAll(pieces.length, i => pieceAudio(audio, pieces[i]), 0.7, 1);
+  } finally { speakers.close(); }
+
   onProgress({ stage: 'regroup' });
-  const capture = assembleCapture({ phrases, times, vectors, expectedSpeakers, durationSec });
+  const capture = assembleCapture({ phrases, pieces, vectors, expectedSpeakers, durationSec });
   onProgress({ stage: 'done', progress: 1 });
   return capture;
 }

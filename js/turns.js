@@ -80,12 +80,16 @@ function splitPhrase(p, runs) {
   return out;
 }
 
+// Phrases cut wherever the windows show another speaker for ≥ SPLIT_MIN_SEC → [{ speaker, start, end, text }].
+export function splitPhrases(phrases, windows) {
+  const runs = speakerRuns(windows);
+  return phrases.filter(p => p.text && p.text.trim()).slice().sort((a, b) => a.start - b.start)
+    .flatMap(p => splitPhrase({ ...p, text: p.text.trim() }, runs));
+}
+
 // buildTurns(phrases, windows) → [{ id: 't1', speaker, start, end, text, signals: {} }]
 export function buildTurns(phrases, windows) {
-  const runs = speakerRuns(windows);
-  const pieces = phrases.filter(p => p.text && p.text.trim())
-    .slice().sort((a, b) => a.start - b.start)
-    .flatMap(p => splitPhrase({ ...p, text: p.text.trim() }, runs));
+  const pieces = splitPhrases(phrases, windows);
   const turns = [];
   for (const s of pieces) {
     const last = turns[turns.length - 1];

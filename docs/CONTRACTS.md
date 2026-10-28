@@ -12,7 +12,7 @@ Times are **seconds from session start** everywhere. Speaker ids are small integ
   source: 'live'|'upload'|'sample', durationSec: number,
   speakers: [{ id: 0, name: 'Speaker 1', color: '#…' }],
   phrases: [{ id: 'p1', start, end, text, source: 'webspeech'|'whisper' }],   // raw ASR
-  windows: [{ t, dur: 1.5, speaker }],            // voiceprint windows, labels after final regroup
+  windows: [{ t, dur, speaker }],                 // one per voiced phrase piece (variable dur), labelled by labelPhrases
   turns:   [{ id: 't1', speaker, start, end, text, signals: {} }],  // signals reserved for a future video model
   analysis: { rules: RulesAnalysis, claude: ClaudeAnalysis | null }
 }

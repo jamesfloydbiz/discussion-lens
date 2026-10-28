@@ -1,8 +1,8 @@
 // Live session: mic → voiced 1.5 s windows → voiceprints (worker) → live speaker labels,
-// plus the Web Speech transcript. stop() regroups every voiceprint and returns a Capture.
+// plus the Web Speech transcript. stop() labels each phrase by its averaged voiceprint and returns a Capture.
 import { startAudio, NoiseGate, rms, WIN, HOP } from './audio.js';
 import { startTranscriber, speechSupported, UNSUPPORTED_MESSAGE } from './transcribe.js';
-import { OnlineClusterer, regroup } from './clustering.js';
+import { OnlineClusterer, labelPhrases, meanInside } from './clustering.js';
 
 // Request/response over a worker, shared with upload.js. Requests carry an id; a reply with that id
 // settles it ({type:'error'} rejects). If the worker crashes (error / messageerror, e.g. WebGPU device
@@ -106,7 +106,7 @@ const PHRASE_WAIT_MS = 2500;  // let the phrase's last windows get embedded befo
 const MAX_QUEUED = 800;       // ~10 min of speech (~75 MB) held while the model downloads
 const READY_WAIT_MS = 20000; // on Stop, how long to wait for a still-downloading voice model
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const REGROUP_EVERY = 15;     // s: relabel the live view with the full regroup (the online clusterer under-splits)
+const REGROUP_EVERY = 15;     // s: relabel the live view by phrase (the online clusterer under-splits)
 
 // startLive({ expectedSpeakers, onPhrase, onStatus, lang }) → { stop(): Promise<Capture> }
 // onStatus({ stage, … }): 'mic' | 'speaker-model' (progress) | 'listening' | 'warning' | 'error' | 'finishing' | 'done',
@@ -157,17 +157,21 @@ export async function startLive({ expectedSpeakers = 0, onPhrase = () => {}, onS
   }
   const timer = setInterval(tick, HOP * 1000);
 
-  // Periodic full regroup so live colours match what the final dashboard will show.
+  // Each phrase's voiceprint is the mean of the windows inside it; phrases are grouped into speakers.
+  // Live keeps no full audio, so it averages; on a classroom seminar 86–89% of speech time vs 67% for windows.
+  function phraseLabels() {
+    const ts = windows.map(w => w.t);
+    const pv = phrases.map(p => meanInside(ts, vectors, p.start, p.end, WIN));
+    return { pv, labels: labelPhrases(pv, { k: expectedSpeakers || 0 }) };
+  }
+
+  // Periodic relabel so live colours match what the final dashboard will show.
   let lastRegroup = 0;
   function relabel() {
-    if (windows.length < 40 || audio.now() - lastRegroup < REGROUP_EVERY) return;
+    if (phrases.length < 4 || audio.now() - lastRegroup < REGROUP_EVERY) return;
     lastRegroup = audio.now();
-    const order = windows.map((w, i) => i).sort((a, b) => windows[a].t - windows[b].t);
-    const labels = regroup(order.map(i => vectors[i]), { k: expectedSpeakers || 0 });
-    order.forEach((i, j) => { windows[i].speaker = labels[j]; });
-    talk.clear();
-    for (const w of windows) talk.set(w.speaker, (talk.get(w.speaker) || 0) + HOP);
-    onStatus({ stage: 'relabel', phrases: phrases.map(p => ({ id: p.id, speaker: majoritySpeaker(windows, p.start, p.end) })) });
+    const { labels } = phraseLabels();
+    onStatus({ stage: 'relabel', phrases: phrases.map((p, i) => ({ id: p.id, speaker: labels[i] })) });
   }
   const regroupTimer = setInterval(relabel, 5000);
 
@@ -199,7 +203,7 @@ export async function startLive({ expectedSpeakers = 0, onPhrase = () => {}, onS
       tick();
       const durationSec = audio.now();
       await audio.stop();
-      // Embed every voiced window still waiting, so the final regroup sees all of them.
+      // Embed every voiced window still waiting, so every phrase gets its voiceprint.
       // Bounded: a first-run download may still be going, and the worker may die (that rejects every pending embed).
       if (modelOk) {
         const loaded = await Promise.race([model.ready.then(() => true, () => false), sleep(READY_WAIT_MS).then(() => false)]);
@@ -217,15 +221,14 @@ export async function startLive({ expectedSpeakers = 0, onPhrase = () => {}, onS
       closing = true; model.close();
       labelLater.splice(0).forEach(clearTimeout);
 
-      // Final regroup over every voiceprint, in time order.
-      const order = windows.map((w, i) => i).sort((a, b) => windows[a].t - windows[b].t);
-      const vs = order.map(i => vectors[i]);
-      const labels = regroup(vs, { k: expectedSpeakers || 0 });
+      // Final labels: one voiceprint per phrase (mean of its windows), grouped into speakers.
+      const { pv, labels } = phraseLabels();
+      const voiced = phrases.map((p, i) => i).filter(i => pv[i]).sort((a, b) => phrases[a].start - phrases[b].start);
       // No voiceprints at all (model never loaded or died at once): every voiced window is speaker 0.
-      const finalWindows = vs.length ? order.map((i, j) => ({ t: windows[i].t, dur: WIN, speaker: labels[j] }))
+      const finalWindows = voiced.length ? voiced.map(i => ({ t: phrases[i].start, dur: phrases[i].end - phrases[i].start, speaker: labels[i] }))
         : voicedTimes.sort((a, b) => a - b).map(t => ({ t, dur: WIN, speaker: 0 }));
       onStatus({ stage: 'done' });
-      return { phrases, windows: finalWindows, embeddings: packEmbeddings(vs), durationSec };
+      return { phrases, windows: finalWindows, embeddings: packEmbeddings(voiced.map(i => pv[i])), durationSec };
     },
   };
 }

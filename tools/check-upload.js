@@ -1,4 +1,4 @@
-// Runs the upload path (voiced windows → WeSpeaker voiceprints → regroup → buildTurns) on real
+// Runs the upload path (windows → cut phrases at speaker changes → one voiceprint per piece → buildTurns) on real
 // audio and scores it against reference labels ([{ s, e } in ms, spk }]).
 //   bun tools/check-upload.js [--audio a.f32 --ref ref.json] [--no-whisper]
 // Defaults to spike/mix.f32 + spike/mix_ref.json. Audio is raw 16 kHz mono float32.
@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { AutoModel, AutoFeatureExtractor, pipeline } from '@huggingface/transformers';
 import { SR, WIN } from '../js/audio.js';
-import { planWindows, blockCuts, chunksToPhrases, assembleCapture, ASR_MODEL } from '../js/upload.js';
+import { planWindows, blockCuts, chunksToPhrases, assembleCapture, segmentPhrases, pieceAudio, ASR_MODEL } from '../js/upload.js';
 import { OnlineClusterer, normalize } from '../js/clustering.js';
 import { buildTurns, speakerRuns } from '../js/turns.js';
 
@@ -92,11 +92,14 @@ console.log('\nspeech time labelled correctly (best one-to-one mapping of groups
 const ls = score(speakerRuns(windowsOf(liveLabels)));
 console.log(`  live OnlineClusterer        ${ls.pct.padStart(6)}  (${ls.groups} groups)`);
 const refTurns = ref.filter((r, i) => i === 0 || r.spk !== ref[i - 1].spk).length;
+// The app cuts phrases at window speaker changes, then takes one voiceprint per piece.
 for (const k of [0, names.length]) {
-  const cap = assembleCapture({ phrases, times, vectors, expectedSpeakers: k, durationSec });
+  const pieces = segmentPhrases(phrases, times, vectors, k), pv = [];
+  for (const p of pieces) pv.push(normalize((await model(await fe(pieceAudio(audio, p)))).last_hidden_state.data));
+  const cap = assembleCapture({ phrases, pieces, vectors: pv, expectedSpeakers: k, durationSec });
   const w = score(speakerRuns(cap.windows));
   const turns = buildTurns(cap.phrases, cap.windows);
   const tt = score(turns);
   const what = k ? `count given (k=${k})` : 'count unknown';
-  console.log(`  regroup, ${what.padEnd(18)} ${w.pct.padStart(6)}  (${w.groups} speakers) · turns: ${tt.pct} of turn time, ${turns.length} turns vs ${refTurns} reference turns`);
+  console.log(`  by phrase, ${what.padEnd(16)} ${w.pct.padStart(6)}  (${w.groups} speakers) · turns: ${tt.pct} of turn time, ${turns.length} turns vs ${refTurns} reference turns`);
 }

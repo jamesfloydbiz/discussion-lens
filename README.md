@@ -25,17 +25,21 @@ bun test
 ```
 
 ## Speaker accuracy (measured)
-| Test | Speakers found | Correct |
-|---|---|---|
-| Podcast, 2 real voices, 10 min | 2 of 2 | 96.1% of speech time |
-| 5 synthetic voices, 3.7 min (bun) | 5 of 5 | 88.6% of speech time, 97.7% of turn time |
-| Same file, uploaded in the browser | 5 of 5 | 95.3% of turn time |
-| Real classroom seminar, ~7 voices, 6 min (YouTube) | 2 found (count blank); one group holds 70% of speech even with 7 entered | no reference labels |
+Speakers are found in two passes. Short 1.5 s voiceprints find where the speaker changes, and phrases are cut there. Then each piece gets one voiceprint from its own audio, and pieces are grouped by average-linkage clustering. Live recording keeps no full audio, so it averages the short voiceprints inside each phrase.
 
-On the classroom clip the voiceprints don't separate similar student voices; that is the main known weakness. Entering the number of speakers helps. `tools/check-upload.js` scores any recording that has reference labels.
+Share of speech time given the right speaker (best match of groups to people):
+
+| Recording | Before (1.5 s windows) | Now |
+|---|---|---|
+| Classroom seminar, ~7 voices + narrator, 6 min, hand-labelled from the transcript (bun) | 67.0% | 98.3% upload · 94.4% live method |
+| Same seminar, uploaded in the browser (WebGPU / `?lowmem`) | ~67% | 98.7% (10 groups) / 89.9% (8 groups) |
+| 5 synthetic voices, 3.7 min, real Whisper phrases (bun) | 88.6% | 95.9% |
+| Podcast, 2 real voices, 10 min (no labels kept; count check only) | 96.1% | 2 speakers found, 295 s vs 288 s |
+
+Bigger voice models (WeSpeaker ResNet221/293, CAM++) did not beat ResNet34 on the seminar; the gain came from longer audio per voiceprint. Known weaknesses: similar voices can still share a group (Lily and Avery on the `?lowmem` run), the count can come out 1–2 high with spare groups holding a few seconds each, and labels are only as good as one hand-labelled clip. `tools/check-upload.js` scores any recording with reference labels; `spike/sem/eval.js` (local only) is the seminar comparison.
 
 ## Memory
-An upload runs the voice model, then Whisper, never both at once. Safari reloads a tab that uses too much memory, so on Safari both models run on the CPU instead of WebGPU. Add `?lowmem` to the URL to do the same in any browser. Peak memory on the 6-min clip, measured in Chromium: 1.9 GB on WebGPU, 1.3 GB with `?lowmem` (it was 2.4 GB with both models loaded together).
+An upload runs Whisper, then the voice model, never both at once. Safari reloads a tab that uses too much memory, so on Safari both models run on the CPU instead of WebGPU. Add `?lowmem` to the URL to do the same in any browser. Peak memory on the 6-min clip, measured in Chromium: 1.9 GB on WebGPU, 1.3 GB with `?lowmem` (it was 2.4 GB with both models loaded together).
 
 ## Layout
 - `docs/CONTRACTS.md`: data shapes shared by every module

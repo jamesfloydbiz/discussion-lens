@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 import { buildTurns, speakerRuns } from '../js/turns.js';
-import { regroup } from '../js/clustering.js';
+import { regroup, labelPhrases, meanInside } from '../js/clustering.js';
 
 // Windows every 0.75 s from `from` to `to`, all one speaker.
 const span = (from, to, speaker) => {
@@ -104,4 +104,34 @@ test('regroup recovers 3 synthetic speakers from noisy vectors (count unknown an
     const correct = Object.values(m).reduce((n, c) => n + Math.max(...c), 0);
     expect(correct / labels.length).toBeGreaterThan(0.95);
   }
+});
+
+test('labelPhrases: quiet speaker kept, muddled pieces broken up when the count is given, nulls stay null', () => {
+  const g = rng(7), dim = 64;
+  const centres = [0, 1, 2].map(() => unit(Array.from({ length: dim }, g)));
+  const truth = [], vectors = [];
+  const say = s => { truth.push(s); vectors.push(unit(Array.from(centres[s], x => x + 0.1 * g()))); };
+  for (let i = 0; i < 40; i++) say(i % 2);              // two talkative speakers
+  for (let i = 0; i < 5; i++) say(2);                   // a quiet one
+  for (let i = 0; i < 6; i++) {                         // muddled pieces: half one voice, half another
+    truth.push(null); vectors.push(unit(Array.from(centres[0], (x, d) => x + centres[1][d] + 0.3 * g())));
+  }
+  truth.push(null); vectors.push(null);
+  for (const k of [0, 3]) {
+    const labels = labelPhrases(vectors, { k });
+    expect(labels.at(-1)).toBeNull();
+    const m = {};
+    truth.forEach((t, i) => { if (t === null) return; m[labels[i]] ??= [0, 0, 0]; m[labels[i]][t]++; });
+    expect(Object.keys(m).length).toBe(3);   // the quiet speaker is its own group
+    for (const c of Object.values(m)) expect(Math.max(...c)).toBe(c.reduce((a, b) => a + b, 0));
+    if (k) expect(new Set(labels.filter(l => l !== null)).size).toBe(3);
+  }
+});
+
+test('meanInside averages only the windows inside a span', () => {
+  const v = [Float32Array.of(1, 0), Float32Array.of(0, 1), Float32Array.of(1, 0)];
+  expect([...meanInside([0, 2, 4], v, 0, 1.5, 1.5)]).toEqual([1, 0]);
+  expect(meanInside([0, 2, 4], v, 10, 12, 1.5)).toBeNull();
+  const m = meanInside([0, 2, 4], v, 0, 3.5, 1.5);
+  expect(m[0]).toBeCloseTo(Math.SQRT1_2); expect(m[1]).toBeCloseTo(Math.SQRT1_2);
 });

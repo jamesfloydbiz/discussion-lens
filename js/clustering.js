@@ -114,3 +114,58 @@ function groupInto(vectors, { k, threshold, minShare }) {
   const order = new Map();
   return raw.map(g => { if (!order.has(g)) order.set(g, order.size); return order.get(g); });
 }
+
+// Speakers per transcript phrase piece, from one voiceprint per piece (null = none; that piece gets null).
+// A whole phrase carries far more of a voice than a 1.5 s window (spike/sem/eval.js on a 6-min, ~7-voice
+// classroom seminar: 67% of speech time right with windows, ~90% by phrase piece). Pieces are few and clean,
+// so plain average-linkage clustering is used; on the seminar it held ~90% for any k from 7 to 9, where
+// regroup() swung from 66% to 86%. The count is chosen by silhouette among 2..MAX_SPEAKERS+2, or among
+// k..k+2 when the user gives k: forcing exactly k made muddled pieces (two voices) push real voices
+// together (synthetic 5 voices: 82% forced, 96% with the spare groups, which hold a few seconds each).
+export function labelPhrases(vectors, { k = 0 } = {}) {
+  const idx = [];
+  vectors.forEach((v, i) => { if (v) idx.push(i); });
+  const labels = vectors.map(() => null);
+  const vs = idx.map(i => vectors[i]), n = vs.length;
+  if (n < 3) { idx.forEach(i => { labels[i] = 0; }); return labels; }
+  const lo = k ? Math.min(k, n - 1) : 2, hi = Math.min(n - 1, (k || MAX_SPEAKERS) + 2);
+  const snaps = averageLinkage(vs, hi);
+  let pick, best = -Infinity;
+  for (let kk = lo; kk <= hi; kk++) { const s = silhouette(vs, snaps.get(kk)); if (s > best) { best = s; pick = snaps.get(kk); } }
+  if (!k && best < MIN_SILHOUETTE) pick = vs.map(() => 0);
+  const order = new Map();
+  pick.forEach((g, j) => { if (!order.has(g)) order.set(g, order.size); labels[idx[j]] = order.get(g); });
+  return labels;
+}
+
+// Average-linkage agglomerative clustering on cosine similarity. Returns Map(clusterCount → labels)
+// for every count from maxK down to 1. O(n²) memory, O(n³) time worst case: fine for a few thousand pieces.
+function averageLinkage(vs, maxK) {
+  const n = vs.length, sim = new Float64Array(n * n), size = new Array(n).fill(1), alive = new Array(n).fill(true);
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) sim[i * n + j] = sim[j * n + i] = cosine(vs[i], vs[j]);
+  const owner = vs.map((_, i) => i), snaps = new Map();
+  for (let count = n; count >= 1; count--) {
+    if (count <= maxK) snaps.set(count, owner.map(o => o));
+    if (count === 1) break;
+    let a = -1, b = -1, bs = -Infinity;
+    for (let i = 0; i < n; i++) if (alive[i]) for (let j = i + 1; j < n; j++) if (alive[j] && sim[i * n + j] > bs) { bs = sim[i * n + j]; a = i; b = j; }
+    for (let j = 0; j < n; j++) if (alive[j] && j !== a && j !== b) {   // Lance–Williams update for average linkage
+      const v = (size[a] * sim[a * n + j] + size[b] * sim[b * n + j]) / (size[a] + size[b]);
+      sim[a * n + j] = sim[j * n + a] = v;
+    }
+    size[a] += size[b]; alive[b] = false;
+    for (let i = 0; i < n; i++) if (owner[i] === b) owner[i] = a;
+  }
+  return snaps;
+}
+
+// Mean (re-normalised) of the window voiceprints that sit inside [start, end] (±0.3 s); null if none.
+export function meanInside(times, vectors, start, end, dur) {
+  let sum = null;
+  times.forEach((t, i) => {
+    if (t < start - 0.3 || t + dur > end + 0.3) return;
+    sum ||= new Float32Array(vectors[i].length);
+    for (let d = 0; d < sum.length; d++) sum[d] += vectors[i][d];
+  });
+  return sum && normalize(sum);
+}
