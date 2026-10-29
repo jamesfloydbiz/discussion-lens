@@ -1,6 +1,6 @@
 # Discussion Lens
 
-Listens to a discussion on one laptop, works out who said what, and builds a dashboard for each person: talk share, quality quotes, topics, and 1–4 scores for questions, reasoning, building on others and clarity.
+Record or upload a discussion. It transcribes it, works out who said what, and builds a dashboard for each person: talk share, turns, questions, quality quotes, and 1–4 scores for questions, reasoning and building on others. If one person is split into two speakers, merge them on the dashboard.
 
 Free, with no server. Everything runs in the browser.
 
@@ -9,8 +9,8 @@ Free, with no server. Everything runs in the browser.
 | Live transcript | Browser speech recognition (Web Speech API; Chrome/Edge). Chrome sends the audio to Google for this. |
 | Who's talking | WeSpeaker voiceprints (`onnx-community/wespeaker-voxceleb-resnet34-LM`) via transformers.js 4.3.1, grouped in `js/clustering.js` |
 | Uploaded recordings | Whisper (`whisper-base.en`) in the browser |
-| Scores | Research-coded rules for everyone (`js/rules.js`); optional deep analysis with your own Claude key, kept only in your browser |
-| Storage | IndexedDB on this laptop; JSON export and import |
+| Scores | Research-coded wording rules (`js/rules.js`, `js/analyze.js`) |
+| Storage | IndexedDB on this laptop |
 
 ## Run locally
 ```bash
@@ -48,7 +48,7 @@ An upload runs Whisper, then the voice model, never both at once. Safari reloads
 ## Layout
 - `docs/CONTRACTS.md`: data shapes shared by every module
 - `js/live.js`, `js/upload.js`, `js/speakers.worker.js`, `js/transcribe.js`, `js/audio.js`, `js/turns.js`: audio to speaker-labelled turns
-- `js/analyze.js` (`rules.js`, `metrics.js`, `topics.js`, `rubric.js`), `js/claude.js`, `js/quotes.js`: scoring; every quote is checked as verbatim
+- `js/analyze.js` (`rules.js`, `metrics.js`, `topics.js`, `rubric.js`), `js/quotes.js`: scoring; every quote is checked as verbatim
 - `index.html` + `js/app.js` (record), `report.html` + `js/report.js` (dashboard), `js/store.js`
 - `data/sample-session.json`: a scripted sample for the demo dashboard
 - Each turn has `signals: {}`, reserved for a future video and body-language model.

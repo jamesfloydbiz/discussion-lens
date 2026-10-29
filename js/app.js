@@ -1,10 +1,9 @@
-// Record page: setup, live recording with a provisional transcript, upload, and past sessions.
+// Record page: live recording with a provisional transcript, upload, and past sessions.
 // live.js / upload.js / turns.js are imported on demand so the page still works if one fails to load.
 
 import { analyzeRules } from './analyze.js';
-import { AGE_BANDS } from './rubric.js';
 import {
-  SPEAKER_COLORS, newId, saveSession, saveEmbeddings, listSessions, deleteSession, exportSession, importSession,
+  SPEAKER_COLORS, DEFAULT_AGE_BAND, newId, saveSession, saveEmbeddings, listSessions, deleteSession,
 } from './store.js';
 
 const $ = id => document.getElementById(id);
@@ -13,23 +12,7 @@ const clock = sec => { sec = Math.max(0, Math.round(sec || 0)); return `${Math.f
 const colorOf = id => SPEAKER_COLORS[id % SPEAKER_COLORS.length];
 const TAG_THROTTLE_MS = 2500;
 
-function prefGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
-function prefSet(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } }
-
-function download(name, text) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-  const a = Object.assign(document.createElement('a'), { href: url, download: name });
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-const fileName = s => (String(s.title || 'discussion').replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'discussion') + '.json';
-
 // ---------- Setup ----------
-const ageSel = $('ageBand');
-ageSel.innerHTML = AGE_BANDS.map(b => `<option value="${esc(b.key)}">${esc(b.label)}</option>`).join('');
-ageSel.value = prefGet('dl.ageBand') || '912';
-if (!ageSel.value) ageSel.value = AGE_BANDS[0]?.key;
-ageSel.addEventListener('change', () => prefSet('dl.ageBand', ageSel.value));
 function expectedSpeakers() {
   const n = parseInt($('speakerCount').value, 10);
   return Number.isFinite(n) && n > 0 ? Math.min(n, 12) : 0;
@@ -43,7 +26,7 @@ async function finish(capture, source, statusEl) {
   if (!turns.length) { statusEl.textContent = 'No speech was captured, so nothing was saved.'; return; }
   const ids = [...new Set(turns.map(t => t.speaker))].sort((a, b) => a - b);
   const session = {
-    id: newId(), createdAt: new Date().toISOString(), title: 'Untitled discussion', ageBand: ageSel.value, source,
+    id: newId(), createdAt: new Date().toISOString(), title: 'Untitled discussion', ageBand: DEFAULT_AGE_BAND, source,
     durationSec: capture.durationSec || turns[turns.length - 1].end,
     speakers: ids.map(id => ({ id, name: `Speaker ${id + 1}`, color: colorOf(id) })),
     phrases: capture.phrases || [], windows: capture.windows || [], turns,
@@ -120,7 +103,7 @@ function scheduleTagging() {
     const ids = [...new Set(turns.map(t => t.speaker))];
     try {
       const r = analyzeRules({
-        id: 'live', ageBand: ageSel.value, source: 'live', durationSec: (Date.now() - live.startedAt) / 1000,
+        id: 'live', ageBand: DEFAULT_AGE_BAND, source: 'live', durationSec: (Date.now() - live.startedAt) / 1000,
         speakers: ids.map(id => ({ id, name: `Speaker ${id + 1}`, color: colorOf(id) })),
         phrases: live.phrases, windows: [], turns, analysis: {},
       });
@@ -251,8 +234,6 @@ $('uploadFile').addEventListener('change', async e => {
 });
 
 // ---------- Past sessions ----------
-const bandLabel = k => AGE_BANDS.find(b => b.key === k)?.label || k || '';
-
 async function renderSessions() {
   const list = $('sessionList'), status = $('pastStatus');
   let sessions;
@@ -264,38 +245,23 @@ async function renderSessions() {
     const date = s.createdAt ? new Date(s.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
     return `<li>
       <div><a href="report.html#${encodeURIComponent(s.id)}">${esc(s.title || 'Untitled discussion')}</a>
-        <div class="meta">${esc(date)} · ${clock(s.durationSec)} · ${esc(bandLabel(s.ageBand))} · ${Array.isArray(s.speakers) ? s.speakers.length : 0} speakers${s.analysis?.claude ? ' · Claude' : ''}</div></div>
+        <div class="meta">${esc(date)} · ${clock(s.durationSec)} · ${Array.isArray(s.speakers) ? s.speakers.length : 0} speakers</div></div>
       <div class="row">
-        <button class="btn small" type="button" data-export="${esc(s.id)}">Export JSON</button>
         <button class="btn small danger" type="button" data-delete="${esc(s.id)}" data-title="${esc(s.title || 'Untitled discussion')}">Delete</button>
       </div></li>`;
   }).join('');
 }
 
 $('sessionList').addEventListener('click', async e => {
-  const exp = e.target.closest('[data-export]'), del = e.target.closest('[data-delete]');
+  const del = e.target.closest('[data-delete]');
   try {
-    if (exp) {
-      const json = await exportSession(exp.dataset.export);
-      download(fileName(JSON.parse(json)), json);
-    } else if (del) {
+    if (del) {
       if (!confirm(`Delete "${del.dataset.title}" from this browser? This can't be undone.`)) return;
       await deleteSession(del.dataset.delete);
       await renderSessions();
       $('pastStatus').textContent = 'Deleted.';
     }
   } catch (err) { $('pastStatus').innerHTML = `<span class="error">${esc(err.message)}</span>`; }
-});
-
-$('importFile').addEventListener('change', async e => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try {
-    const s = await importSession(await file.text());
-    await renderSessions();
-    $('pastStatus').textContent = `Imported "${s.title}".`;
-  } catch (err) { $('pastStatus').innerHTML = `<span class="error">${esc(err.message)}</span>`; }
-  e.target.value = '';
 });
 
 renderSessions();

@@ -10,10 +10,6 @@
   <header class="site-head">
     <div class="wrap">
       <a class="brand" href="./">Discussion Lens</a>
-      <div class="row no-print">
-        <button id="printBtn" class="btn small" type="button">Print</button>
-        <button id="exportBtn" class="btn small" type="button">Export JSON</button>
-      </div>
     </div>
   </header>
 
@@ -27,24 +23,17 @@
         <div id="facts" class="facts"></div>
         <p id="sampleNote" class="notice warn no-print" hidden>Scripted sample. Edits here are not saved.</p>
         <h2 class="sr-only">Speakers</h2>
+        <!-- COPY: James -->
+        <p class="muted no-print" style="font-size:.9rem">Name each speaker. If one person was split in two, merge them.</p>
         <div id="speakerEdit" class="speaker-edit"></div>
       </section>
 
       <section class="card" aria-labelledby="groupTitle">
         <h2 id="groupTitle">Group</h2>
-        <p id="summary"></p>
         <h3>Talk share</h3>
         <div id="shareBar"></div>
-        <h3 style="margin-top: 20px">Topics and speakers over time</h3>
+        <h3 style="margin-top: 20px">Who spoke when</h3>
         <div id="timeline" class="timeline"></div>
-        <h3 style="margin-top: 20px">Who speaks next</h3>
-        <p class="muted" style="font-size: .9rem">Rows: who spoke. Columns: who spoke right after.</p>
-        <div id="respondsGrid" class="table-scroll"></div>
-      </section>
-
-      <section class="card" aria-labelledby="topicsTitle">
-        <h2 id="topicsTitle">Topics</h2>
-        <ol id="topics" class="topics"></ol>
       </section>
 
       <section aria-labelledby="peopleTitle">
@@ -57,32 +46,6 @@
           <summary><h2>Full transcript</h2> <span id="turnCount" class="muted"></span></summary>
           <div id="transcript"></div>
         </details>
-      </section>
-
-      <section class="card science">
-        <details>
-          <summary><h2>Science behind the scores</h2></summary>
-          <!-- COPY: James -->
-          <p class="muted">Each score is 1–4 against the anchors below for this age band. Rules mode estimates from wording. Claude mode reads the whole discussion and must quote the transcript for every score.</p>
-          <div id="science"></div>
-        </details>
-      </section>
-
-      <section class="card claude-panel" aria-labelledby="claudeTitle">
-        <h2 id="claudeTitle">Deep analysis with your Claude key</h2>
-        <p class="muted">The key is stored only in this browser. The transcript is sent from this browser straight to Anthropic.</p>
-        <form id="claudeForm" class="stack">
-          <div class="field">
-            <label for="apiKey">Anthropic API key</label>
-            <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
-          </div>
-          <div class="row">
-            <button id="runClaude" class="btn primary" type="submit">Run deep analysis</button>
-            <button id="forgetKey" class="btn" type="button">Forget key</button>
-          </div>
-          <progress id="claudeProgress" max="100" hidden></progress>
-          <p id="claudeStatus" class="status" role="status" aria-live="polite"></p>
-        </form>
       </section>
     </div>
   </main>

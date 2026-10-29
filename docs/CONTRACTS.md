@@ -14,7 +14,7 @@ Times are **seconds from session start** everywhere. Speaker ids are small integ
   phrases: [{ id: 'p1', start, end, text, source: 'webspeech'|'whisper' }],   // raw ASR
   windows: [{ t, dur, speaker }],                 // one per voiced phrase piece (variable dur), labelled by labelPhrases
   turns:   [{ id: 't1', speaker, start, end, text, signals: {} }],  // signals reserved for a future video model
-  analysis: { rules: RulesAnalysis, claude: ClaudeAnalysis | null }
+  analysis: { rules: RulesAnalysis, claude: null }   // claude kept null; the Claude-key analysis was removed
 }
 ```
 Embeddings are stored apart (store `embeddings`, key = session id, `{dim, data: Float32Array}`), never exported.
@@ -43,12 +43,6 @@ Score = { value: 1|2|3|4|null, label: 'Developing'|…, basis: 'one line: what t
 ```
 Question `type`: `clarification | evidence | assumption | viewpoint | implication | causal | factual | yesno` (deep = all but factual/yesno).
 
-## ClaudeAnalysis — `js/claude.js` → `analyzeWithClaude(session, apiKey, { model, onProgress })` (IC-Analysis)
-Same `people` and `topics` shapes as rules, plus per person `strength` and `nextStep` = `{ text, turnId, quote }`,
-plus top-level `summary`, `model`, `createdAt`, `droppedQuotes` (count removed by the quote check).
-All quotes pass `js/quotes.js` → `verifyQuote(quote, turnText)` / `cleanAnalysis(analysis, turns)`.
-UI shows Claude results where present, rules otherwise.
-
 ## Rubric — `js/rubric.js` (IC-Analysis)
 ```js
 export const AGE_BANDS = [{ key: 'k5', label: 'K–5' }, { key: '68', label: '6–8' }, { key: '912', label: '9–12' }, { key: 'adult', label: 'Adult' }];
@@ -65,5 +59,5 @@ export const RUBRIC = [{ key, name, basis: [citation strings], anchors: { k5: [a
 
 ## UI + storage — IC-UI
 - `js/store.js`: `saveSession, getSession, listSessions, deleteSession, saveEmbeddings, getEmbeddings, exportSession(id) → JSON string, importSession(json)`.
-- `index.html` (record / upload / past sessions), `report.html#<id>` (dashboard), `css/style.css`, `js/app.js`, `js/report.js`.
+- `index.html` (record / upload / past sessions), `report.html#<id>` (dashboard; name and merge speakers), `css/style.css`, `js/app.js`, `js/report.js`.
 - `data/sample-session.json`: a **scripted** sample discussion (clearly labelled as scripted) so visitors see a dashboard without recording.

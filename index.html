@@ -35,10 +35,6 @@
       <h2>Setup</h2>
       <div class="row">
         <div class="field">
-          <label for="ageBand">Age band</label>
-          <select id="ageBand"></select>
-        </div>
-        <div class="field">
           <label for="speakerCount">Number of speakers (optional)</label>
           <input id="speakerCount" type="number" min="1" max="12" inputmode="numeric" placeholder="Auto">
         </div>
@@ -85,10 +81,7 @@
     </section>
 
     <section class="card" aria-labelledby="pastTitle">
-      <div class="row" style="justify-content: space-between">
-        <h2 id="pastTitle" style="margin: 0">Past sessions</h2>
-        <span><input id="importFile" class="sr-only" type="file" accept="application/json,.json"><label class="btn small" for="importFile">Import JSON</label></span>
-      </div>
+      <h2 id="pastTitle">Past sessions</h2>
       <p id="pastStatus" class="status" role="status" aria-live="polite"></p>
       <ul id="sessionList" class="sessions"></ul>
     </section>

@@ -1,16 +1,17 @@
-// Dashboard: report.html#<session id> or #sample. Shows Claude results where present, rules otherwise.
-// claude.js is imported only when the deep analysis runs, so the dashboard never depends on it.
+// Dashboard: report.html#<session id> or #sample. Names and merges speakers, then shows each person's measures.
 
 import { analyzeRules } from './analyze.js';
 import { AGE_BANDS, RUBRIC } from './rubric.js';
-import { SPEAKER_COLORS, DEFAULT_AGE_BAND, getSession, saveSession, exportSession } from './store.js';
+import { MERGE_GAP_SEC } from './turns.js';
+import { SPEAKER_COLORS, DEFAULT_AGE_BAND, getSession, saveSession } from './store.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clock = sec => { sec = Math.max(0, Math.round(sec || 0)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };
 const num = v => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const pctOf = share => Math.round((share > 1 ? share : share * 100) || 0);
-const KEY_STORE = 'dl.anthropicKey';
+// Clarity needs a reader of the whole discussion; wording rules can't score it, so it isn't shown.
+const DIMS = RUBRIC.filter(d => d.key !== 'clarity');
 
 let session = null;
 let isSample = false;
@@ -63,8 +64,6 @@ const nameOf = id => speakerById(id).name;
 const HEX = /^#[0-9a-f]{6}$/i;
 const colorOf = id => { const c = speakerById(id).color; return HEX.test(c) ? c : SPEAKER_COLORS[Math.abs(num(id)) % SPEAKER_COLORS.length]; };
 const turnById = id => session.turns.find(t => t.id === id);
-const active = () => session.analysis.claude || session.analysis.rules || {};
-const mode = () => (session.analysis.claude ? 'claude' : 'rules');
 
 function quoteBtn(q, color) {
   if (!q?.quote) return '';
@@ -77,25 +76,13 @@ function render() {
   document.title = `${session.title || 'Dashboard'} · Discussion Lens`;
   renderFacts();
   renderGroup();
-  renderTopics();
   renderPeople();
   renderTranscript();
-  renderScience();
-  renderClaudePanel();
 }
 
 function renderFacts() {
-  const a = session.analysis;
   const date = session.createdAt ? new Date(session.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '';
-  const badge = a.claude
-    ? `<span class="badge claude" title="Scored by ${esc(a.claude.model || 'Claude')}">Claude analysis</span>`
-    : '<span class="badge" title="Scored by wording rules">Rules estimate</span>';
-  $('facts').innerHTML = `
-    <span>${esc(date)}</span><span>${clock(session.durationSec)} long</span>
-    <span class="row" style="gap:6px"><label for="bandSel">Age band</label>
-      <select id="bandSel">${AGE_BANDS.map(b => `<option value="${esc(b.key)}"${b.key === band() ? ' selected' : ''}>${esc(b.label)}</option>`).join('')}</select></span>
-    <span>${num(session.speakers.length)} speakers</span>${badge}`;
-  $('bandSel').addEventListener('change', e => { session.ageBand = e.target.value; persist(); render(); });
+  $('facts').innerHTML = `<span>${esc(date)}</span><span>${clock(session.durationSec)} long</span><span>${num(session.speakers.length)} speakers</span>`;
 }
 
 function renderSpeakerEdit() {
@@ -105,11 +92,36 @@ function renderSpeakerEdit() {
       <input id="sc-${s.id}" type="color" value="${esc(s.color)}" data-color="${s.id}">
       <label class="sr-only" for="sn-${s.id}">Name for speaker ${s.id + 1}</label>
       <input id="sn-${s.id}" type="text" value="${esc(s.name)}" maxlength="40" data-name="${s.id}">
+      ${session.speakers.length > 1 ? `<label class="sr-only" for="sm-${s.id}">Merge ${esc(s.name)} into</label>
+      <select id="sm-${s.id}" data-merge="${s.id}"><option value="">Merge into…</option>
+        ${session.speakers.filter(o => o.id !== sp.id).map(o => `<option value="${num(o.id)}">${esc(o.name)}</option>`).join('')}</select>` : ''}
     </div>`; }).join('');
 }
 
+// One person split into two groups: give `from`'s speech to `into`, join their back-to-back turns, rescore.
+function mergeSpeakers(from, into) {
+  for (const w of session.windows || []) if (w.speaker === from) w.speaker = into;
+  const turns = [];
+  for (const t of session.turns) {
+    const sp = t.speaker === from ? into : t.speaker, last = turns.at(-1);
+    if (last && last.speaker === sp && t.start - last.end < MERGE_GAP_SEC) { last.end = Math.max(last.end, t.end); last.text += ' ' + t.text; }
+    else turns.push({ ...t, speaker: sp });
+  }
+  session.turns = turns.map((t, i) => ({ ...t, id: 't' + (i + 1) }));
+  session.speakers = session.speakers.filter(s => s.id !== from);
+  session.analysis = { rules: analyzeRules(session), claude: null };
+}
+
 $('speakerEdit').addEventListener('change', e => {
-  const t = e.target, id = Number(t.dataset.name ?? t.dataset.color);
+  const t = e.target;
+  if (t.dataset.merge != null) {
+    const from = Number(t.dataset.merge), into = Number(t.value);
+    if (t.value === '' || !confirm(`Merge ${nameOf(from)} into ${nameOf(into)}? Their speech becomes one person.`)) { t.value = ''; return; }
+    mergeSpeakers(from, into);
+    persist(); renderSpeakerEdit(); render();
+    return;
+  }
+  const id = Number(t.dataset.name ?? t.dataset.color);
   const s = session.speakers.find(x => x.id === id);
   if (!s) return;
   if (t.dataset.name != null) s.name = t.value.trim() || `Speaker ${id + 1}`;
@@ -125,9 +137,6 @@ function renderGroup() {
   const m = session.analysis.rules?.metrics || {};
   const per = m.perSpeaker || {};
   const ids = session.speakers.map(s => s.id);
-  const summary = session.analysis.claude?.summary;
-  const gini = typeof m.gini === 'number' ? `Talk equity (Gini): ${m.gini.toFixed(2)}. 0 is perfectly even, 1 is one voice.` : '';
-  $('summary').innerHTML = [summary && esc(summary), gini && `<span class="muted">${esc(gini)}</span>`].filter(Boolean).join('<br>');
 
   // Talk share bar.
   const shares = ids.map(id => ({ id, pct: pctOf(per[id]?.share) }));
@@ -140,44 +149,12 @@ function renderGroup() {
   // Timeline: topic bands coloured by main driver, then one lane per speaker.
   const dur = session.durationSec || session.turns.at(-1)?.end || 1;
   const pos = (s, e) => `left:${(100 * s / dur).toFixed(2)}%;width:${Math.max(0.3, 100 * (e - s) / dur).toFixed(2)}%`;
-  const topics = Array.isArray(active().topics) ? active().topics : [];
-  const topicLane = `<div class="lane"><span class="name">Topics</span><div class="track topics">
-    ${topics.map((t, i) => `<span class="seg" style="${pos(t.start, t.end)};--c:${esc(colorOf(t.drivers?.[0]))}"
-      title="${esc(`${i + 1}. ${t.title} (${clock(t.start)}–${clock(t.end)}), led by ${nameOf(t.drivers?.[0])}`)}">${i + 1}. ${esc(t.title)}</span>`).join('')}
-    </div></div>`;
   const lanes = ids.map(id => `<div class="lane"><span class="name">${esc(nameOf(id))}</span><div class="track">
     ${session.turns.filter(t => t.speaker === id).map(t => `<span class="seg" style="${pos(t.start, t.end)};--c:${esc(colorOf(id))}"></span>`).join('')}
     </div></div>`).join('');
   const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => `<span>${clock(f * dur)}</span>`).join('');
-  $('timeline').innerHTML = `<div role="img" aria-label="Timeline of ${num(topics.length)} topics and when each person spoke">${topicLane}${lanes}</div><div class="axis" aria-hidden="true">${ticks}</div>`;
+  $('timeline').innerHTML = `<div role="img" aria-label="When each person spoke">${lanes}</div><div class="axis" aria-hidden="true">${ticks}</div>`;
 
-  // Who-responds-to-whom grid.
-  const rt = m.respondsTo || {};
-  let max = 0;
-  for (const a of ids) for (const b of ids) max = Math.max(max, num(rt[a]?.[b]));
-  $('respondsGrid').innerHTML = `<table class="grid">
-    <thead><tr><th scope="col"><span class="sr-only">Spoke, then</span></th>${ids.map(id => `<th scope="col">${esc(nameOf(id))}</th>`).join('')}</tr></thead>
-    <tbody>${ids.map(a => `<tr><th scope="row"><span class="dot" style="--c:${esc(colorOf(a))}"></span>${esc(nameOf(a))}</th>
-      ${ids.map(b => { const n = num(rt[a]?.[b]); const mix = max ? Math.round(55 * n / max) : 0;
-        return `<td style="background:color-mix(in srgb, var(--accent) ${mix}%, transparent)" aria-label="${n} times ${esc(nameOf(b))} spoke right after ${esc(nameOf(a))}">${n || ''}</td>`; }).join('')}
-    </tr>`).join('')}</tbody></table>`;
-}
-
-function renderTopics() {
-  const topics = Array.isArray(active().topics) ? active().topics : [];
-  if (!topics.length) { $('topics').innerHTML = '<li class="muted">No topics found.</li>'; return; }
-  $('topics').innerHTML = topics.map((t, i) => {
-    const who = [...new Set((t.turnIds || []).map(id => turnById(id)?.speaker).filter(s => s != null))];
-    const contributors = (who.length ? who : t.drivers || []);
-    const about = t.summary || (t.keywords?.length ? `Keywords: ${t.keywords.join(', ')}` : '');
-    return `<li>
-      <div class="span">${clock(t.start)}–${clock(t.end)}</div>
-      <h3>${i + 1}. ${esc(t.title)}</h3>
-      ${about ? `<p class="muted">${esc(about)}</p>` : ''}
-      <div class="legend" style="margin:0 0 8px">${contributors.map(id => `<span><span class="dot" style="--c:${esc(colorOf(id))}"></span>${esc(nameOf(id))}${t.drivers?.[0] === id ? ' (led)' : ''}</span>`).join('')}</div>
-      ${quoteBtn(t.keyQuote, colorOf(turnById(t.keyQuote?.turnId)?.speaker ?? t.drivers?.[0]))}
-    </li>`;
-  }).join('');
 }
 
 function scoreBlock(dim, score) {
@@ -186,7 +163,7 @@ function scoreBlock(dim, score) {
   const steps = [1, 2, 3, 4].map(n => `<span class="${v != null && n <= v ? 'on' : ''}"></span>`).join('');
   let label, detail;
   if (v == null) {
-    label = mode() === 'rules' && dim.key === 'clarity' ? 'Claude analysis only' : 'Not enough evidence';
+    label = 'Not enough evidence';
     detail = score?.basis || '';
   } else {
     label = `${v}/4${score.label ? ` · ${score.label}` : ''}`;
@@ -202,19 +179,13 @@ function scoreBlock(dim, score) {
   </div>`;
 }
 
-function coach(title, item) {
-  if (!item?.text) return '';
-  return `<div><h4>${esc(title)}</h4><p>${esc(item.text)}</p>
-    ${item.quote ? `<button type="button" class="linkish" data-turn="${esc(item.turnId)}" data-quote="${esc(item.quote)}">“${esc(item.quote)}”</button>` : ''}</div>`;
-}
-
 function renderPeople() {
-  const rules = session.analysis.rules || {}, claude = session.analysis.claude;
+  const rules = session.analysis.rules || {};
   const per = rules.metrics?.perSpeaker || {};
   const ids = session.speakers.map(s => s.id).filter(id => session.turns.some(t => t.speaker === id));
   $('people').innerHTML = ids.map(id => {
     const m = per[id] || {};
-    const p = claude?.people?.[id] || rules.people?.[id] || {};
+    const p = rules.people?.[id] || {};
     const c = colorOf(id);
     const quotes = (p.quotes || []).slice(0, 3);
     return `<article class="card person" style="--c:${esc(c)}" aria-labelledby="pname-${num(id)}">
@@ -224,11 +195,10 @@ function renderPeople() {
         <div><dt>Turns</dt><dd>${num(m.turns)}</dd></div>
         <div><dt>Questions</dt><dd>${num(m.deepQuestions)}/${num(m.questions)} <small style="font-size:.7rem;font-weight:400">deep</small></dd></div>
       </dl>
-      <div class="rubric">${RUBRIC.map(dim => scoreBlock(dim, p.scores?.[dim.key])).join('')}</div>
+      <div class="rubric">${DIMS.map(dim => scoreBlock(dim, p.scores?.[dim.key])).join('')}</div>
       ${quotes.length ? `<h4 class="sr-only">Quotes</h4><div class="quotes">${quotes.map(q => `<div>
         ${quoteBtn(q, c)}
         <p class="why">${q.move ? `<span class="tag">${esc(q.move)}</span> ` : ''}${esc(q.why || '')}</p></div>`).join('')}</div>` : ''}
-      ${claude && (p.strength || p.nextStep) ? `<div class="coach">${coach('Strength', p.strength)}${coach('Next step', p.nextStep)}</div>` : ''}
     </article>`;
   }).join('');
 }
@@ -254,15 +224,6 @@ function renderTranscript() {
     </div>`).join('');
 }
 
-function renderScience() {
-  $('science').innerHTML = `<dl>${RUBRIC.map(dim => `
-    <dt>${esc(dim.name)}</dt>
-    <dd>
-      <ol>${(dim.anchors?.[band()] || []).map(a => `<li>${esc(a)}</li>`).join('')}</ol>
-      ${dim.basis?.length ? `<ul>${dim.basis.map(b => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}
-    </dd>`).join('')}</dl>`;
-}
-
 // ---------- Quote → transcript ----------
 function showInTranscript(turnId, quote) {
   const el = document.getElementById(`turn-${turnId}`);
@@ -284,82 +245,6 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-turn]');
   if (b) showInTranscript(b.dataset.turn, b.dataset.quote);
 });
-
-// ---------- Claude ----------
-function keyGet() { try { return localStorage.getItem(KEY_STORE) || ''; } catch { return ''; } }
-function keySet(v) { try { localStorage.setItem(KEY_STORE, v); } catch { /* storage blocked */ } }
-function keyForget() { try { localStorage.removeItem(KEY_STORE); } catch { /* storage blocked */ } }
-
-function renderClaudePanel() {
-  const c = session.analysis.claude;
-  $('runClaude').textContent = c ? 'Run again' : 'Run deep analysis';
-  if (c && !$('claudeStatus').dataset.busy) {
-    const when = c.createdAt ? new Date(c.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
-    $('claudeStatus').textContent = `Showing Claude analysis${c.model ? ` (${c.model})` : ''}${when ? `, ${when}` : ''}.${c.droppedQuotes ? ` ${c.droppedQuotes} quotes dropped: not found in the transcript.` : ''}`;
-  }
-}
-
-function readProgress(p) {
-  if (typeof p === 'number') return { pct: p <= 1 ? p * 100 : p, text: '' };
-  if (!p || typeof p !== 'object') return { pct: null, text: String(p ?? '') };
-  const v = p.progress ?? p.pct ?? p.percent;
-  return { pct: typeof v === 'number' ? (v <= 1 ? v * 100 : v) : null, text: p.message || p.stage || p.status || '' };
-}
-
-$('apiKey').value = keyGet();
-$('forgetKey').addEventListener('click', () => {
-  keyForget(); $('apiKey').value = '';
-  $('claudeStatus').textContent = 'Key removed from this browser.';
-});
-$('claudeForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  const key = $('apiKey').value.trim();
-  const status = $('claudeStatus'), bar = $('claudeProgress'), btn = $('runClaude');
-  if (!key) { status.innerHTML = '<span class="error">Enter your Anthropic API key first.</span>'; $('apiKey').focus(); return; }
-  keySet(key);
-  btn.disabled = true; status.dataset.busy = '1'; bar.hidden = false; bar.removeAttribute('value');
-  status.textContent = 'Starting…';
-  try {
-    const { analyzeWithClaude } = await import('./claude.js');
-    const result = await analyzeWithClaude(session, key, {
-      onProgress: p => {
-        const { pct, text } = readProgress(p);
-        if (pct == null) bar.removeAttribute('value'); else bar.value = Math.max(0, Math.min(100, pct));
-        if (text) status.textContent = text;
-      },
-    });
-    session.analysis.claude = result;
-    await persist();
-    delete status.dataset.busy;
-    render();
-    if (isSample) status.textContent += ' Not saved: this is the sample.';
-  } catch (err) {
-    console.error(err);
-    delete status.dataset.busy;
-    status.innerHTML = `<span class="error">${esc(err?.message || 'Deep analysis failed.')}</span>`;
-  } finally {
-    btn.disabled = false; bar.hidden = true;
-  }
-});
-
-// ---------- Export / print ----------
-$('exportBtn').addEventListener('click', async () => {
-  try {
-    const json = isSample ? JSON.stringify(session, null, 2) : await exportSession(session.id);
-    const name = (String(session.title || 'discussion').replace(/[^\w-]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'discussion') + '.json';
-    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: name });
-    document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch (e) { alert(`Export failed: ${e.message}`); }
-});
-$('printBtn').addEventListener('click', () => print());
-let closedForPrint = [];
-addEventListener('beforeprint', () => {
-  closedForPrint = [...document.querySelectorAll('details:not([open])')];
-  closedForPrint.forEach(d => { d.open = true; });
-});
-addEventListener('afterprint', () => { closedForPrint.forEach(d => { d.open = false; }); closedForPrint = []; });
 
 addEventListener('hashchange', load);
 load();
